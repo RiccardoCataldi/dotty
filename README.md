@@ -21,7 +21,7 @@ Run `dotty` from any directory once the binary is on your `PATH`.
 
 ### Pre-built binary (recommended)
 
-Download from [Releases](https://github.com/RiccardoCataldi/dotty/releases). Replace `VERSION` with the latest tag (e.g. `v0.1.0`).
+Download from [Releases](https://github.com/RiccardoCataldi/dotty/releases). Replace `VERSION` with the latest tag (e.g. `v0.1.1`).
 
 | Platform | Asset |
 |----------|-------|
@@ -31,7 +31,7 @@ Download from [Releases](https://github.com/RiccardoCataldi/dotty/releases). Rep
 | macOS Apple Silicon | `dotty_Darwin_arm64.tar.gz` |
 
 ```bash
-VERSION=v0.1.0
+VERSION=v0.1.1
 curl -sL "https://github.com/RiccardoCataldi/dotty/releases/download/${VERSION}/dotty_Linux_x86_64.tar.gz" | tar xz
 install -m 755 dotty ~/bin/   # or: sudo install -m 755 dotty /usr/local/bin/
 ```
