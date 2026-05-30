@@ -1,4 +1,4 @@
-package main
+package clipboard
 
 import (
 	"fmt"
@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-func copyPathToClipboard(path string) (string, error) {
+func CopyPath(path string) (string, error) {
 	var cmd *exec.Cmd
 	switch runtime.GOOS {
 	case "darwin":

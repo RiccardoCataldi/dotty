@@ -1,4 +1,4 @@
-package main
+package scan
 
 import (
 	"os"
@@ -7,7 +7,8 @@ import (
 	"strings"
 )
 
-var defaultBlocklist = map[string]bool{
+// DefaultBlocklist skips noisy or sensitive dot-directories under $HOME.
+var DefaultBlocklist = map[string]bool{
 	".cache":   true,
 	".local":   true,
 	".mozilla": true,
@@ -33,17 +34,11 @@ type TreeNode struct {
 	loaded   bool
 }
 
-type visibleRow struct {
-	node     *TreeNode
-	depth    int
-	expanded bool
-}
-
-func (n *TreeNode) entry() Entry {
+func (n *TreeNode) ToEntry() Entry {
 	return Entry{Name: n.RelPath, Path: n.Path, IsDir: n.IsDir}
 }
 
-func scanDotfiles(homeDir string) ([]*TreeNode, int, error) {
+func Dotfiles(homeDir string) ([]*TreeNode, int, error) {
 	entries, err := os.ReadDir(homeDir)
 	if err != nil {
 		return nil, 0, err
@@ -63,7 +58,7 @@ func scanDotfiles(homeDir string) ([]*TreeNode, int, error) {
 		}
 
 		if info.IsDir() {
-			if defaultBlocklist[name] {
+			if DefaultBlocklist[name] {
 				continue
 			}
 			roots = append(roots, &TreeNode{
@@ -83,10 +78,10 @@ func scanDotfiles(homeDir string) ([]*TreeNode, int, error) {
 	}
 
 	sortTreeNodes(roots)
-	return roots, countTreeNodes(roots), nil
+	return roots, CountNodes(roots), nil
 }
 
-func loadChildren(node *TreeNode) error {
+func LoadChildren(node *TreeNode) error {
 	if !node.IsDir || node.loaded {
 		return nil
 	}
@@ -128,12 +123,12 @@ func sortTreeNodes(nodes []*TreeNode) {
 	})
 }
 
-func countTreeNodes(nodes []*TreeNode) int {
+func CountNodes(nodes []*TreeNode) int {
 	n := 0
 	for _, node := range nodes {
 		n++
 		if node.loaded {
-			n += countTreeNodes(node.Children)
+			n += CountNodes(node.Children)
 		}
 	}
 	return n

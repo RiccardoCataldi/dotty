@@ -1,9 +1,13 @@
-package main
+package preview
 
 import (
 	"fmt"
 	"os"
 	"strings"
+
+	"github.com/riccardo/dotty/internal/scan"
+	"github.com/riccardo/dotty/internal/tree"
+	"github.com/riccardo/dotty/internal/ui"
 )
 
 const (
@@ -11,23 +15,23 @@ const (
 	maxPreviewLines = 500
 )
 
-type previewResult struct {
+type Result struct {
 	Content    string
 	Title      string
 	TotalLines int
 }
 
-func buildPreview(entry Entry) previewResult {
+func Build(entry scan.Entry) Result {
 	if entry.IsDir {
-		return buildDirPreview(entry)
+		return buildDir(entry)
 	}
-	return buildFilePreview(entry)
+	return buildFile(entry)
 }
 
-func binaryPreviewResult(name string, size int64) previewResult {
+func binaryResult(name string, size int64) Result {
 	msg := fmt.Sprintf("Binary file cannot be previewed (%s)", formatFileSize(size))
-	return previewResult{
-		Content:    styleDim.Render(msg),
+	return Result{
+		Content:    ui.Dim.Render(msg),
 		Title:      name,
 		TotalLines: 1,
 	}
@@ -46,56 +50,56 @@ func formatFileSize(n int64) string {
 	return fmt.Sprintf("%.1f %cB", float64(n)/float64(div), "KMGTPE"[exp])
 }
 
-func buildDirPreview(entry Entry) previewResult {
-	return previewResult{
-		Content: styleDim.Render("Directory — press Enter to expand, then select a file to preview"),
+func buildDir(entry scan.Entry) Result {
+	return Result{
+		Content: ui.Dim.Render("Directory — press Enter to expand, then select a file to preview"),
 		Title:   entry.Name,
 	}
 }
 
-func buildFilePreview(entry Entry) previewResult {
+func buildFile(entry scan.Entry) Result {
 	info, err := os.Stat(entry.Path)
 	if err != nil {
-		return previewResult{
-			Content: styleError.Render("Unable to read file"),
+		return Result{
+			Content: ui.Error.Render("Unable to read file"),
 			Title:   entry.Name,
 		}
 	}
 
 	if info.Size() > maxPreviewSize {
-		return previewResult{
-			Content: styleDim.Render("File too large to preview (> 512 KB)"),
+		return Result{
+			Content: ui.Dim.Render("File too large to preview (> 512 KB)"),
 			Title:   entry.Name,
 		}
 	}
 
-	if isBinaryExtension(entry.Path) {
-		return binaryPreviewResult(entry.Name, info.Size())
+	if IsBinaryExtension(entry.Path) {
+		return binaryResult(entry.Name, info.Size())
 	}
 
 	data, err := os.ReadFile(entry.Path)
 	if err != nil {
-		return previewResult{
-			Content: styleError.Render("Unable to read file"),
+		return Result{
+			Content: ui.Error.Render("Unable to read file"),
 			Title:   entry.Name,
 		}
 	}
 
 	if len(data) == 0 {
-		return previewResult{
-			Content: styleDim.Render("(empty file)"),
+		return Result{
+			Content: ui.Dim.Render("(empty file)"),
 			Title:   entry.Name,
 		}
 	}
 
-	if isBinaryData(data) {
-		return binaryPreviewResult(entry.Name, info.Size())
+	if IsBinaryData(data) {
+		return binaryResult(entry.Name, info.Size())
 	}
 
-	content := sanitizePreviewContent(string(data))
+	content := sanitizeContent(string(data))
 	if strings.TrimSpace(content) == "" {
-		return previewResult{
-			Content: styleDim.Render("(empty file)"),
+		return Result{
+			Content: ui.Dim.Render("(empty file)"),
 			Title:   entry.Name,
 		}
 	}
@@ -115,17 +119,17 @@ func buildFilePreview(entry Entry) previewResult {
 	for i, line := range lines {
 		lineNum := fmt.Sprintf("%4d", i+1)
 		highlighted := highlightLine(line)
-		rendered = append(rendered, styleLineNumber.Render(lineNum)+"  "+highlighted)
+		rendered = append(rendered, ui.LineNumber.Render(lineNum)+"  "+highlighted)
 	}
 
 	if truncated {
 		msg := fmt.Sprintf("... (%d more lines not shown)", remaining)
-		rendered = append(rendered, styleDim.Render(msg))
+		rendered = append(rendered, ui.Dim.Render(msg))
 	}
 
-	return previewResult{
-		Content:   strings.Join(rendered, "\n"),
-		Title:     entry.Name,
+	return Result{
+		Content:    strings.Join(rendered, "\n"),
+		Title:      entry.Name,
 		TotalLines: totalLines,
 	}
 }
@@ -133,15 +137,15 @@ func buildFilePreview(entry Entry) previewResult {
 func highlightLine(line string) string {
 	trimmed := strings.TrimSpace(line)
 	if strings.HasPrefix(trimmed, "#") || strings.HasPrefix(trimmed, "//") || strings.HasPrefix(trimmed, "--") {
-		return styleComment.Render(line)
+		return ui.Comment.Render(line)
 	}
 	if strings.HasPrefix(trimmed, "[[") || strings.HasPrefix(trimmed, "[") {
-		return styleComment.Render(line)
+		return ui.Comment.Render(line)
 	}
 	return line
 }
 
-func previewTitleWithPercent(title string, yOffset, visibleLines, totalLines int) string {
+func TitleWithPercent(title string, yOffset, visibleLines, totalLines int) string {
 	if totalLines <= visibleLines || visibleLines <= 0 {
 		return title
 	}
@@ -156,15 +160,15 @@ func previewTitleWithPercent(title string, yOffset, visibleLines, totalLines int
 	return fmt.Sprintf("%s  %d%%", title, pct)
 }
 
-func renderListItem(row visibleRow, selected bool) string {
-	indent := strings.Repeat("  ", row.depth)
+func RenderListItem(row tree.Row, selected bool) string {
+	indent := strings.Repeat("  ", row.Depth)
 
 	var marker string
 	switch {
 	case selected:
 		marker = "▸"
-	case row.node.IsDir:
-		if row.expanded {
+	case row.Node.IsDir:
+		if row.Expanded {
 			marker = "▾"
 		} else {
 			marker = "▸"
@@ -173,15 +177,14 @@ func renderListItem(row visibleRow, selected bool) string {
 		marker = " "
 	}
 
-	name := row.node.Name
+	name := row.Node.Name
 	line := indent + marker + " " + name
 
 	if selected {
-		return styleActiveItem.Render(line)
+		return ui.ActiveItem.Render(line)
 	}
-	if row.node.IsDir {
-		return styleDirItem.Render(line)
+	if row.Node.IsDir {
+		return ui.DirItem.Render(line)
 	}
 	return line
 }
-

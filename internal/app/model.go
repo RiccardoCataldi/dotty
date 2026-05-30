@@ -1,4 +1,4 @@
-package main
+package app
 
 import (
 	"time"
@@ -6,6 +6,10 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/riccardo/dotty/internal/fuzzy"
+	"github.com/riccardo/dotty/internal/preview"
+	"github.com/riccardo/dotty/internal/scan"
+	"github.com/riccardo/dotty/internal/tree"
 )
 
 type focusPanel int
@@ -25,51 +29,51 @@ const (
 type tickMsg time.Time
 
 type pickerWarmMsg struct {
-	files []pickerEntry
+	files []fuzzy.Entry
 }
 
 type pickerFilterMsg struct {
 	gen     int
 	query   string
-	results []pickerMatch
+	results []fuzzy.Match
 	total   int
 }
 
-type model struct {
-	homeDir           string
-	roots             []*TreeNode
-	totalCount        int
-	visibleRows       []visibleRow
-	expanded          map[string]bool
-	cursor            int
-	listOffset        int
-	focus             focusPanel
-	mode              uiMode
-	pickerInput            textinput.Model
-	pickerAll              []pickerEntry
-	pickerResults          []pickerMatch
-	pickerMatchTotal       int
-	pickerLastQuery        string
-	pickerFilterGen        int
-	pickerCursor           int
-	pickerOffset           int
-	pickerPreview          viewport.Model
-	pickerPreviewPath      string
-	pickerPreviewTitle     string
+type Model struct {
+	homeDir                 string
+	roots                   []*scan.TreeNode
+	totalCount              int
+	visibleRows             []tree.Row
+	expanded                map[string]bool
+	cursor                  int
+	listOffset              int
+	focus                   focusPanel
+	mode                    uiMode
+	pickerInput             textinput.Model
+	pickerAll               []fuzzy.Entry
+	pickerResults           []fuzzy.Match
+	pickerMatchTotal        int
+	pickerLastQuery         string
+	pickerFilterGen         int
+	pickerCursor            int
+	pickerOffset            int
+	pickerPreview           viewport.Model
+	pickerPreviewPath       string
+	pickerPreviewTitle      string
 	pickerPreviewTotalLines int
-	preview           viewport.Model
-	previewTitle      string
-	previewTotalLines int
-	width, height     int
-	panelHeight       int
-	listWidth         int
-	previewWidth      int
-	listInnerHeight   int
-	statusMsg         string
-	statusMsgExpiry   time.Time
+	preview                 viewport.Model
+	previewTitle            string
+	previewTotalLines       int
+	width, height           int
+	panelHeight             int
+	listWidth               int
+	previewWidth            int
+	listInnerHeight         int
+	statusMsg               string
+	statusMsgExpiry         time.Time
 }
 
-func newModel(homeDir string, roots []*TreeNode, totalCount int) model {
+func New(homeDir string, roots []*scan.TreeNode, totalCount int) Model {
 	pi := textinput.New()
 	pi.Prompt = "> "
 	pi.CharLimit = 256
@@ -77,7 +81,7 @@ func newModel(homeDir string, roots []*TreeNode, totalCount int) model {
 	ppv := viewport.New(0, 0)
 	vp := viewport.New(0, 0)
 
-	m := model{
+	m := Model{
 		homeDir:       homeDir,
 		roots:         roots,
 		totalCount:    totalCount,
@@ -85,16 +89,16 @@ func newModel(homeDir string, roots []*TreeNode, totalCount int) model {
 		pickerInput:   pi,
 		pickerPreview: ppv,
 		preview:       vp,
-		focus:       focusList,
-		mode:        modeNormal,
+		focus:         focusList,
+		mode:          modeNormal,
 	}
 	m.rebuildVisible()
 	m.refreshPreview()
 	return m
 }
 
-func (m *model) rebuildVisible() {
-	m.visibleRows = rebuildVisibleRows(m.roots, m.expanded)
+func (m *Model) rebuildVisible() {
+	m.visibleRows = tree.Visible(m.roots, m.expanded)
 	if m.cursor >= len(m.visibleRows) && len(m.visibleRows) > 0 {
 		m.cursor = len(m.visibleRows) - 1
 	}
@@ -105,7 +109,7 @@ func (m *model) rebuildVisible() {
 	}
 }
 
-func (m *model) refreshPreview() {
+func (m *Model) refreshPreview() {
 	if len(m.visibleRows) == 0 {
 		m.preview.SetContent("")
 		m.previewTitle = ""
@@ -117,51 +121,51 @@ func (m *model) refreshPreview() {
 	if m.cursor < 0 {
 		m.cursor = 0
 	}
-	entry := m.visibleRows[m.cursor].node.entry()
-	result := buildPreview(entry)
+	entry := m.visibleRows[m.cursor].Node.ToEntry()
+	result := preview.Build(entry)
 	m.preview.SetContent(result.Content)
 	m.previewTitle = result.Title
 	m.previewTotalLines = result.TotalLines
 	m.preview.GotoTop()
 }
 
-func (m *model) selectedEntry() (Entry, bool) {
+func (m *Model) selectedEntry() (scan.Entry, bool) {
 	if len(m.visibleRows) == 0 || m.cursor >= len(m.visibleRows) {
-		return Entry{}, false
+		return scan.Entry{}, false
 	}
-	return m.visibleRows[m.cursor].node.entry(), true
+	return m.visibleRows[m.cursor].Node.ToEntry(), true
 }
 
-func (m *model) toggleExpandAtCursor() {
+func (m *Model) toggleExpandAtCursor() {
 	if m.cursor >= len(m.visibleRows) {
 		return
 	}
 	row := m.visibleRows[m.cursor]
-	if !row.node.IsDir {
+	if !row.Node.IsDir {
 		return
 	}
-	if m.expanded[row.node.Path] {
-		delete(m.expanded, row.node.Path)
+	if m.expanded[row.Node.Path] {
+		delete(m.expanded, row.Node.Path)
 	} else {
-		_ = loadChildren(row.node)
-		m.expanded[row.node.Path] = true
-		m.totalCount = countTreeNodes(m.roots)
+		_ = scan.LoadChildren(row.Node)
+		m.expanded[row.Node.Path] = true
+		m.totalCount = scan.CountNodes(m.roots)
 		m.invalidatePickerCache()
 	}
 	m.rebuildVisible()
 	m.ensureCursorVisible()
 }
 
-func (m *model) collapseAtCursor() {
+func (m *Model) collapseAtCursor() {
 	if m.cursor >= len(m.visibleRows) {
 		return
 	}
 	row := m.visibleRows[m.cursor]
-	if row.depth > 0 {
+	if row.Depth > 0 {
 		for i := m.cursor - 1; i >= 0; i-- {
-			if m.visibleRows[i].depth < row.depth {
+			if m.visibleRows[i].Depth < row.Depth {
 				m.cursor = i
-				delete(m.expanded, m.visibleRows[i].node.Path)
+				delete(m.expanded, m.visibleRows[i].Node.Path)
 				m.rebuildVisible()
 				m.ensureCursorVisible()
 				m.refreshPreview()
@@ -169,14 +173,14 @@ func (m *model) collapseAtCursor() {
 			}
 		}
 	}
-	if row.node.IsDir && m.expanded[row.node.Path] {
-		delete(m.expanded, row.node.Path)
+	if row.Node.IsDir && m.expanded[row.Node.Path] {
+		delete(m.expanded, row.Node.Path)
 		m.rebuildVisible()
 		m.ensureCursorVisible()
 	}
 }
 
-func (m *model) ensureCursorVisible() {
+func (m *Model) ensureCursorVisible() {
 	if m.cursor < m.listOffset {
 		m.listOffset = m.cursor
 	}
@@ -185,17 +189,16 @@ func (m *model) ensureCursorVisible() {
 	}
 }
 
-func (m model) Init() tea.Cmd {
+func (m Model) Init() tea.Cmd {
 	return tea.Batch(
 		tea.Tick(time.Second, func(t time.Time) tea.Msg { return tickMsg(t) }),
 		func() tea.Msg {
-			roots := m.roots
-			return pickerWarmMsg{files: collectAllFiles(roots)}
+			return pickerWarmMsg{files: collectAllFiles(m.roots)}
 		},
 	)
 }
 
-func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width

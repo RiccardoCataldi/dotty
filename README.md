@@ -22,7 +22,7 @@ Requires Go 1.22+.
 ```bash
 git clone https://github.com/RiccardoCataldi/dotty.git
 cd dotty
-go build -o dotty .
+go build -o dotty ./cmd/dotty
 mv dotty ~/bin/   # or another directory on your PATH
 ```
 
@@ -55,7 +55,22 @@ Skipped dot-directories (noisy or sensitive):
 
 `.cache` `.local` `.mozilla` `.dbus` `.pki` `.gnupg` `.var` `.snap`
 
-To change the skip list, edit `defaultBlocklist` in `scan.go`.
+To change the skip list, edit `DefaultBlocklist` in `internal/scan/scan.go`.
+
+## Project layout
+
+```
+cmd/dotty/          Program entry point
+internal/
+  app/              Bubble Tea UI (model, views, keys, fuzzy finder overlay)
+  scan/             Home-directory dotfile scanning and tree nodes
+  tree/             Expandable tree / visible rows
+  preview/          File preview and binary-safe reading
+  fuzzy/            Path fuzzy matching for the finder
+  clipboard/        OS clipboard integration
+  ui/               Lip Gloss styles
+docs/               Product notes
+```
 
 ## Keybindings
 

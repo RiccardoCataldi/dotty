@@ -1,4 +1,4 @@
-package main
+package app
 
 import (
 	"fmt"
@@ -11,36 +11,22 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/mattn/go-runewidth"
+	"github.com/riccardo/dotty/internal/fuzzy"
+	"github.com/riccardo/dotty/internal/preview"
+	"github.com/riccardo/dotty/internal/scan"
+	"github.com/riccardo/dotty/internal/tree"
+	"github.com/riccardo/dotty/internal/ui"
 )
 
-type pickerEntry struct {
-	RelPath  string
-	Path     string
-	relLower []rune
-}
-
-type pickerMatch struct {
-	entry   pickerEntry
-	indices []int
-}
-
-func newPickerEntry(relPath, path string) pickerEntry {
-	return pickerEntry{
-		RelPath:  relPath,
-		Path:     path,
-		relLower: []rune(strings.ToLower(relPath)),
-	}
-}
-
-func collectAllFiles(roots []*TreeNode) []pickerEntry {
-	var files []pickerEntry
-	var walk func(node *TreeNode)
-	walk = func(node *TreeNode) {
+func collectAllFiles(roots []*scan.TreeNode) []fuzzy.Entry {
+	var files []fuzzy.Entry
+	var walk func(node *scan.TreeNode)
+	walk = func(node *scan.TreeNode) {
 		if !node.IsDir {
-			files = append(files, newPickerEntry(node.RelPath, node.Path))
+			files = append(files, fuzzy.NewEntry(node.RelPath, node.Path))
 			return
 		}
-		_ = loadChildren(node)
+		_ = scan.LoadChildren(node)
 		for _, child := range node.Children {
 			walk(child)
 		}
@@ -51,7 +37,7 @@ func collectAllFiles(roots []*TreeNode) []pickerEntry {
 	return files
 }
 
-func (m *model) openPicker() {
+func (m *Model) openPicker() {
 	if m.pickerAll == nil {
 		m.pickerAll = collectAllFiles(m.roots)
 	}
@@ -65,19 +51,19 @@ func (m *model) openPicker() {
 	m.mode = modePicker
 }
 
-func (m *model) closePicker() {
+func (m *Model) closePicker() {
 	m.mode = modeNormal
 	m.pickerPreviewPath = ""
 	m.pickerInput.Blur()
 }
 
-func (m *model) filterPicker() {
+func (m *Model) filterPicker() {
 	query := m.pickerInput.Value()
-	results, total := filterAndRankPickerFiles(m.pickerAll, query, m.pickerResults, m.pickerLastQuery)
+	results, total := fuzzy.FilterAndRank(m.pickerAll, query, m.pickerResults, m.pickerLastQuery)
 	m.applyPickerFilter(query, results, total)
 }
 
-func (m *model) applyPickerFilter(query string, results []pickerMatch, total int) {
+func (m *Model) applyPickerFilter(query string, results []fuzzy.Match, total int) {
 	if query != m.pickerLastQuery {
 		m.pickerCursor = 0
 		m.pickerOffset = 0
@@ -96,14 +82,14 @@ func (m *model) applyPickerFilter(query string, results []pickerMatch, total int
 	m.refreshPickerPreview()
 }
 
-func filterPickerCmd(gen int, all []pickerEntry, query string, prev []pickerMatch, prevQuery string) tea.Cmd {
+func filterPickerCmd(gen int, all []fuzzy.Entry, query string, prev []fuzzy.Match, prevQuery string) tea.Cmd {
 	return func() tea.Msg {
-		results, total := filterAndRankPickerFiles(all, query, prev, prevQuery)
+		results, total := fuzzy.FilterAndRank(all, query, prev, prevQuery)
 		return pickerFilterMsg{gen: gen, query: query, results: results, total: total}
 	}
 }
 
-func (m *model) refreshPickerPreview() {
+func (m *Model) refreshPickerPreview() {
 	_, _, _, previewColW, listHeight := m.pickerLayout()
 	bodyH := max(listHeight-1, 1)
 	m.pickerPreview.Width = max(previewColW, 1)
@@ -112,21 +98,21 @@ func (m *model) refreshPickerPreview() {
 
 	if len(m.pickerResults) == 0 || m.pickerCursor >= len(m.pickerResults) {
 		m.pickerPreviewPath = ""
-		m.pickerPreview.SetContent(stylePickerDim.Render("No file selected"))
+		m.pickerPreview.SetContent(ui.PickerDim.Render("No file selected"))
 		m.pickerPreviewTitle = ""
 		m.pickerPreviewTotalLines = 0
 		return
 	}
 
-	e := m.pickerResults[m.pickerCursor].entry
+	e := m.pickerResults[m.pickerCursor].Entry
 	if e.Path == m.pickerPreviewPath {
 		return
 	}
 	m.pickerPreviewPath = e.Path
 
 	name := filepath.Base(strings.TrimSuffix(e.RelPath, "/"))
-	entry := Entry{Name: name, Path: e.Path, IsDir: false}
-	result := buildPreview(entry)
+	entry := scan.Entry{Name: name, Path: e.Path, IsDir: false}
+	result := preview.Build(entry)
 	m.pickerPreview.SetContent(clampPreviewToWidth(result.Content, previewColW))
 	m.pickerPreviewTitle = result.Title
 	m.pickerPreviewTotalLines = result.TotalLines
@@ -146,7 +132,7 @@ func clampPreviewToWidth(content string, width int) string {
 	return strings.Join(lines, "\n")
 }
 
-func (m *model) pickerLayout() (pickerWidth, innerW, listColW, previewColW, listHeight int) {
+func (m *Model) pickerLayout() (pickerWidth, innerW, listColW, previewColW, listHeight int) {
 	pickerWidth = max(min(m.width*9/10, m.width-4), 60)
 	innerW = pickerWidth - 4
 	listColW = innerW * 11 / 20
@@ -166,12 +152,12 @@ func (m *model) pickerLayout() (pickerWidth, innerW, listColW, previewColW, list
 	return pickerWidth, innerW, listColW, previewColW, listHeight
 }
 
-func (m *model) pickerResultsHeight() int {
+func (m *Model) pickerResultsHeight() int {
 	_, _, _, _, h := m.pickerLayout()
 	return h
 }
 
-func (m *model) ensurePickerCursorVisible() {
+func (m *Model) ensurePickerCursorVisible() {
 	h := m.pickerResultsHeight()
 	if m.pickerCursor < m.pickerOffset {
 		m.pickerOffset = m.pickerCursor
@@ -181,33 +167,33 @@ func (m *model) ensurePickerCursorVisible() {
 	}
 }
 
-func (m *model) confirmPicker() {
+func (m *Model) confirmPicker() {
 	if len(m.pickerResults) == 0 || m.pickerCursor >= len(m.pickerResults) {
 		m.closePicker()
 		return
 	}
-	selected := m.pickerResults[m.pickerCursor].entry
+	selected := m.pickerResults[m.pickerCursor].Entry
 	m.closePicker()
 	m.revealRelPath(selected.RelPath)
 	m.refreshPreview()
 }
 
-func (m *model) revealRelPath(target string) {
+func (m *Model) revealRelPath(target string) {
 	for _, root := range m.roots {
 		if revealFrom(m, root, target) {
 			break
 		}
 	}
-	m.totalCount = countTreeNodes(m.roots)
+	m.totalCount = scan.CountNodes(m.roots)
 	m.invalidatePickerCache()
 	m.rebuildVisible()
-	if idx := findRowByRelPath(m.visibleRows, target); idx >= 0 {
+	if idx := tree.FindByRelPath(m.visibleRows, target); idx >= 0 {
 		m.cursor = idx
 		m.ensureCursorVisible()
 	}
 }
 
-func revealFrom(m *model, node *TreeNode, target string) bool {
+func revealFrom(m *Model, node *scan.TreeNode, target string) bool {
 	if node.RelPath == target {
 		return true
 	}
@@ -217,7 +203,7 @@ func revealFrom(m *model, node *TreeNode, target string) bool {
 	if !strings.HasPrefix(target, node.RelPath) {
 		return false
 	}
-	_ = loadChildren(node)
+	_ = scan.LoadChildren(node)
 	m.expanded[node.Path] = true
 	for _, child := range node.Children {
 		if child.RelPath == target {
@@ -232,11 +218,11 @@ func revealFrom(m *model, node *TreeNode, target string) bool {
 	return false
 }
 
-func (m *model) invalidatePickerCache() {
+func (m *Model) invalidatePickerCache() {
 	m.pickerAll = nil
 }
 
-func (m model) updatePicker(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m Model) updatePicker(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch {
 	case msg.String() == "esc" || msg.String() == "q":
 		m.closePicker()
@@ -284,20 +270,19 @@ func (m model) updatePicker(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
-func renderPickerItem(match pickerMatch, selected bool, listColW int) string {
-	entry := match.entry
+func renderPickerItem(match fuzzy.Match, selected bool, listColW int) string {
+	entry := match.Entry
 	prefix := "  "
 	if selected {
 		prefix = "> "
 	}
-	// account for prefix width
 	displayW := max(listColW-runewidth.StringWidth(prefix), 8)
-	display := pickerDisplayPath(entry.RelPath, displayW)
-	indices := mapIndicesToDisplay(entry.RelPath, display, match.indices)
+	display := fuzzy.DisplayPath(entry.RelPath, displayW)
+	indices := fuzzy.MapIndicesToDisplay(entry.RelPath, display, match.Indices)
 	text := highlightPickerMatches(display, indices)
 	line := prefix + text
 	if selected {
-		return padLine(stylePickerSelected.Render(line), listColW)
+		return padLine(ui.PickerSelected.Render(line), listColW)
 	}
 	return padLine(line, listColW)
 }
@@ -314,7 +299,7 @@ func highlightPickerMatches(text string, indices []int) string {
 	for i := 0; i < len(text); {
 		if matchSet[i] {
 			r, size := utf8.DecodeRuneInString(text[i:])
-			b.WriteString(stylePickerMatch.Render(string(r)))
+			b.WriteString(ui.PickerMatch.Render(string(r)))
 			i += size
 		} else {
 			r, size := utf8.DecodeRuneInString(text[i:])
@@ -325,7 +310,7 @@ func highlightPickerMatches(text string, indices []int) string {
 	return b.String()
 }
 
-func (m model) renderPickerOverlay() string {
+func (m Model) renderPickerOverlay() string {
 	pickerWidth, innerW, listColW, previewColW, listHeight := m.pickerLayout()
 
 	m.pickerInput.Width = innerW
@@ -350,19 +335,19 @@ func (m model) renderPickerOverlay() string {
 
 	previewTitle := m.pickerPreviewTitle
 	if m.pickerPreviewTotalLines > m.pickerPreview.Height {
-		previewTitle = previewTitleWithPercent(m.pickerPreviewTitle, m.pickerPreview.YOffset, m.pickerPreview.Height, m.pickerPreviewTotalLines)
+		previewTitle = preview.TitleWithPercent(m.pickerPreviewTitle, m.pickerPreview.YOffset, m.pickerPreview.Height, m.pickerPreviewTotalLines)
 	}
-	titleLine := padLine(stylePanelTitle.Render(" "+previewTitle), previewColW)
+	titleLine := padLine(ui.PanelTitle.Render(" "+previewTitle), previewColW)
 	previewBody := m.pickerPreview.View()
 	if previewBody == "" {
-		previewBody = stylePickerDim.Render("No file selected")
+		previewBody = ui.PickerDim.Render("No file selected")
 	}
 	previewCol := lipgloss.NewStyle().Width(previewColW).Height(listHeight).Render(
 		lipgloss.JoinVertical(lipgloss.Top, titleLine, previewBody),
 	)
 
 	divider := lipgloss.NewStyle().Width(1).Height(listHeight).Render(
-		stylePickerDivider.Render("│"),
+		ui.PickerDivider.Render("│"),
 	)
 	split := lipgloss.JoinHorizontal(lipgloss.Top, listBlock, divider, previewCol)
 
@@ -370,12 +355,12 @@ func (m model) renderPickerOverlay() string {
 	if query == "" {
 		matchTotal = len(m.pickerAll)
 	}
-	footerText := stylePickerFooter.Render(
+	footerText := ui.PickerFooter.Render(
 		formatPickerFooter(m.pickerCursor, len(m.pickerResults), matchTotal, len(m.pickerAll)),
 	)
 
 	body := lipgloss.JoinVertical(lipgloss.Left, promptLine, sep, split, padLine(footerText, innerW))
-	modal := stylePickerBorder.Width(pickerWidth).Render(body)
+	modal := ui.PickerBorder.Width(pickerWidth).Render(body)
 
 	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, modal)
 }

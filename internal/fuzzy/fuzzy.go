@@ -1,4 +1,4 @@
-package main
+package fuzzy
 
 import (
 	"path/filepath"
@@ -17,12 +17,31 @@ const (
 	scoreConsecutiveBonus = 6
 	scoreBasenameBonus    = 24
 	scoreExtensionBoost   = 2000
-	minPathFuzzyScore     = 40
+	MinPathScore          = 40
 	pickerResultCap       = 1000
 )
 
-type scoredPickerEntry struct {
-	entry   pickerEntry
+type Entry struct {
+	RelPath  string
+	Path     string
+	relLower []rune
+}
+
+type Match struct {
+	Entry   Entry
+	Indices []int
+}
+
+func NewEntry(relPath, path string) Entry {
+	return Entry{
+		RelPath:  relPath,
+		Path:     path,
+		relLower: []rune(strings.ToLower(relPath)),
+	}
+}
+
+type scoredEntry struct {
+	entry   Entry
 	score   int
 	indices []int
 }
@@ -35,37 +54,37 @@ type pathFuzzyResult struct {
 	ok       bool
 }
 
-func filterAndRankPickerFiles(all []pickerEntry, query string, prev []pickerMatch, prevQuery string) ([]pickerMatch, int) {
+func FilterAndRank(all []Entry, query string, prev []Match, prevQuery string) ([]Match, int) {
 	if query == "" {
-		out := make([]pickerMatch, 0, min(len(all), pickerResultCap))
+		out := make([]Match, 0, min(len(all), pickerResultCap))
 		for i, e := range all {
 			if i >= pickerResultCap {
 				break
 			}
-			out = append(out, pickerMatch{entry: e})
+			out = append(out, Match{Entry: e})
 		}
 		return out, len(all)
 	}
 
 	source := all
 	if prevQuery != "" && strings.HasPrefix(query, prevQuery) && len(query) > len(prevQuery) && len(prev) > 0 {
-		source = make([]pickerEntry, len(prev))
+		source = make([]Entry, len(prev))
 		for i, m := range prev {
-			source[i] = m.entry
+			source[i] = m.Entry
 		}
 	}
 
 	qLower := []rune(strings.ToLower(query))
-	scored := make([]scoredPickerEntry, 0, 256)
+	scored := make([]scoredEntry, 0, 256)
 	for _, e := range source {
 		if !quickSubsequence(qLower, e.relLower) {
 			continue
 		}
-		s, indices, ok := scorePathFuzzyWithIndices(qLower, e)
-		if !ok || s < minPathFuzzyScore {
+		s, indices, ok := scoreWithIndices(qLower, e)
+		if !ok || s < MinPathScore {
 			continue
 		}
-		scored = append(scored, scoredPickerEntry{entry: e, score: s, indices: indices})
+		scored = append(scored, scoredEntry{entry: e, score: s, indices: indices})
 	}
 
 	matchCount := len(scored)
@@ -85,9 +104,9 @@ func filterAndRankPickerFiles(all []pickerEntry, query string, prev []pickerMatc
 		scored = scored[:pickerResultCap]
 	}
 
-	out := make([]pickerMatch, len(scored))
+	out := make([]Match, len(scored))
 	for i, s := range scored {
-		out[i] = pickerMatch{entry: s.entry, indices: s.indices}
+		out[i] = Match{Entry: s.entry, Indices: s.indices}
 	}
 	return out, matchCount
 }
@@ -200,7 +219,7 @@ func computePathFuzzy(qLower []rune, path string, tLower []rune) pathFuzzyResult
 	}
 }
 
-func scorePathFuzzyWithIndices(qLower []rune, e pickerEntry) (int, []int, bool) {
+func scoreWithIndices(qLower []rune, e Entry) (int, []int, bool) {
 	r := computePathFuzzy(qLower, e.RelPath, e.relLower)
 	if !r.ok {
 		return 0, nil, false
@@ -211,10 +230,10 @@ func scorePathFuzzyWithIndices(qLower []rune, e pickerEntry) (int, []int, bool) 
 	return r.score, backtrackByteIndices(qLower, r.text, r.prevJ, r.queryLen), true
 }
 
-func scorePathFuzzy(query, path string) (int, bool) {
+func ScorePath(query, path string) (int, bool) {
 	qLower := []rune(strings.ToLower(query))
-	e := pickerEntry{RelPath: path, relLower: []rune(strings.ToLower(path))}
-	s, _, ok := scorePathFuzzyWithIndices(qLower, e)
+	e := Entry{RelPath: path, relLower: []rune(strings.ToLower(path))}
+	s, _, ok := scoreWithIndices(qLower, e)
 	return s, ok
 }
 
@@ -230,15 +249,10 @@ func extensionBoostFromLower(qLower []rune, path string) int {
 	return 0
 }
 
-func extensionBoost(query, path string) int {
-	return extensionBoostFromLower([]rune(strings.ToLower(query)), path)
-}
-
-// pathFuzzyIndices returns byte indices in path for highlighting (best-scoring alignment).
 func pathFuzzyIndices(query, path string) []int {
 	qLower := []rune(strings.ToLower(query))
-	e := pickerEntry{RelPath: path, relLower: []rune(strings.ToLower(path))}
-	_, indices, ok := scorePathFuzzyWithIndices(qLower, e)
+	e := Entry{RelPath: path, relLower: []rune(strings.ToLower(path))}
+	_, indices, ok := scoreWithIndices(qLower, e)
 	if !ok {
 		return nil
 	}
@@ -276,7 +290,7 @@ func runeIndicesToByteIndices(text []rune, runeIdx []int) []int {
 	return bytes
 }
 
-func pickerDisplayPath(relPath string, maxWidth int) string {
+func DisplayPath(relPath string, maxWidth int) string {
 	if maxWidth <= 0 {
 		return relPath
 	}
@@ -291,7 +305,7 @@ func pickerDisplayPath(relPath string, maxWidth int) string {
 	return ellipsis + tailByWidth(relPath, avail)
 }
 
-func mapIndicesToDisplay(fullPath, display string, fullIndices []int) []int {
+func MapIndicesToDisplay(fullPath, display string, fullIndices []int) []int {
 	if len(fullIndices) == 0 || display == fullPath {
 		return fullIndices
 	}
@@ -327,10 +341,9 @@ func tailByWidth(s string, maxWidth int) string {
 	return string(runes)
 }
 
-func pickerHighlightIndices(query, relPath, display string) []int {
-	full := pathFuzzyIndices(query, relPath)
-	if display == relPath {
-		return full
+func min(a, b int) int {
+	if a < b {
+		return a
 	}
-	return mapIndicesToDisplay(relPath, display, full)
+	return b
 }

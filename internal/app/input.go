@@ -1,13 +1,14 @@
-package main
+package app
 
 import (
 	"time"
 
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/riccardo/dotty/internal/clipboard"
 )
 
-func (m *model) handleKey(msg tea.KeyMsg) tea.Cmd {
+func (m *Model) handleKey(msg tea.KeyMsg) tea.Cmd {
 	switch {
 	case msg.String() == "esc":
 		return nil
@@ -74,7 +75,7 @@ func (m *model) handleKey(msg tea.KeyMsg) tea.Cmd {
 		m.refreshPreview()
 	case key.Matches(msg, keys.CopyPath):
 		if ok && !entry.IsDir {
-			msgText, err := copyPathToClipboard(entry.Path)
+			msgText, err := clipboard.CopyPath(entry.Path)
 			if err != nil {
 				m.statusMsg = err.Error()
 			} else {

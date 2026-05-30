@@ -1,4 +1,4 @@
-package main
+package app
 
 import (
 	"fmt"
@@ -6,9 +6,11 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/riccardo/dotty/internal/preview"
+	"github.com/riccardo/dotty/internal/ui"
 )
 
-func (m *model) layoutPanels() {
+func (m *Model) layoutPanels() {
 	if m.width == 0 || m.height == 0 {
 		return
 	}
@@ -24,7 +26,6 @@ func (m *model) layoutPanels() {
 	}
 }
 
-// limitLines trims to max lines; keepBottom keeps the last max lines (e.g. scroll from bottom).
 func limitLines(content string, max int, keepBottom bool) string {
 	if max <= 0 {
 		return ""
@@ -69,7 +70,7 @@ func padLine(line string, width int) string {
 	return line
 }
 
-func (m model) View() string {
+func (m Model) View() string {
 	if m.width == 0 {
 		return "Loading..."
 	}
@@ -81,16 +82,16 @@ func (m model) View() string {
 	return padLines(panels+"\n"+status, m.width, m.height)
 }
 
-func (m model) renderListPanel() string {
-	border := styleInactiveBorder
+func (m Model) renderListPanel() string {
+	border := ui.InactiveBorder
 	if m.focus == focusList {
-		border = styleActiveBorder
+		border = ui.ActiveBorder
 	}
 
 	var listLines []string
 	end := min(m.listOffset+m.listInnerHeight, len(m.visibleRows))
 	for i := m.listOffset; i < end; i++ {
-		listLines = append(listLines, renderListItem(m.visibleRows[i], i == m.cursor))
+		listLines = append(listLines, preview.RenderListItem(m.visibleRows[i], i == m.cursor))
 	}
 	for len(listLines) < m.listInnerHeight {
 		listLines = append(listLines, "")
@@ -105,17 +106,17 @@ func (m model) renderListPanel() string {
 		Render(content)
 }
 
-func (m model) renderPreviewPanel() string {
-	border := styleInactiveBorder
+func (m Model) renderPreviewPanel() string {
+	border := ui.InactiveBorder
 	if m.focus == focusPreview {
-		border = styleActiveBorder
+		border = ui.ActiveBorder
 	}
 
 	title := m.previewTitle
 	if m.previewTotalLines > m.preview.Height {
-		title = previewTitleWithPercent(m.previewTitle, m.preview.YOffset, m.preview.Height, m.previewTotalLines)
+		title = preview.TitleWithPercent(m.previewTitle, m.preview.YOffset, m.preview.Height, m.previewTotalLines)
 	}
-	titleLine := stylePanelTitle.Render(" " + title)
+	titleLine := ui.PanelTitle.Render(" " + title)
 
 	innerWidth := max(m.previewWidth-2, 1)
 	titleRendered := padLine(titleLine, innerWidth)
@@ -136,14 +137,14 @@ type statusHintSpec struct {
 }
 
 func formatStatusCount(visible, total int) string {
-	return styleStatusCountNum.Render(fmt.Sprintf("%d", visible)) +
-		styleStatusCount.Render("/") +
-		styleStatusCountNum.Render(fmt.Sprintf("%d", total)) +
-		styleStatusCount.Render(" files")
+	return ui.StatusCountNum.Render(fmt.Sprintf("%d", visible)) +
+		ui.StatusCount.Render("/") +
+		ui.StatusCountNum.Render(fmt.Sprintf("%d", total)) +
+		ui.StatusCount.Render(" files")
 }
 
 func renderStatusHint(spec statusHintSpec) string {
-	return styleStatusKey.Render(spec.key) + styleStatusLabel.Render(" "+spec.desc)
+	return ui.StatusKey.Render(spec.key) + ui.StatusLabel.Render(" "+spec.desc)
 }
 
 func renderStatusHints(specs []statusHintSpec) string {
@@ -151,10 +152,10 @@ func renderStatusHints(specs []statusHintSpec) string {
 	for i, spec := range specs {
 		parts[i] = renderStatusHint(spec)
 	}
-	return strings.Join(parts, styleStatusSep.Render(" · "))
+	return strings.Join(parts, ui.StatusSep.Render(" · "))
 }
 
-func (m model) statusHintSpecs() []statusHintSpec {
+func (m Model) statusHintSpecs() []statusHintSpec {
 	if m.focus == focusPreview {
 		return []statusHintSpec{
 			{"j/k", "scroll"},
@@ -173,11 +174,11 @@ func (m model) statusHintSpecs() []statusHintSpec {
 	}
 }
 
-func (m model) renderStatusBar() string {
+func (m Model) renderStatusBar() string {
 	left := formatStatusCount(len(m.visibleRows), m.totalCount)
 
 	if m.statusMsg != "" {
-		right := styleStatusMsg.Render(m.statusMsg)
+		right := ui.StatusMsg.Render(m.statusMsg)
 		gap := m.width - lipgloss.Width(left) - lipgloss.Width(right)
 		if gap < 1 {
 			gap = 1

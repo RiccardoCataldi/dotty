@@ -1,4 +1,4 @@
-# PRD — dotdash
+# PRD — dotty
 **Product Requirements Document**
 Version 1.1 — TUI dashboard for dotfile navigation
 
@@ -6,9 +6,9 @@ Version 1.1 — TUI dashboard for dotfile navigation
 
 ## 1. Overview
 
-**dotdash** is a terminal-based dashboard for navigating and managing dotfiles on a Unix/Linux system. It targets developers who accumulate many configuration files and folders in their home directory (`.zshrc`, `.gitconfig`, `.cursor/`, `.aws/`, `.config/nvim/`, etc.) and want a fast, keyboard-driven way to find, view, and manage them — without leaving the terminal, regardless of which directory they are currently in.
+**dotty** is a terminal-based dashboard for navigating and managing dotfiles on a Unix/Linux system. It targets developers who accumulate many configuration files and folders in their home directory (`.zshrc`, `.gitconfig`, `.cursor/`, `.aws/`, `.config/nvim/`, etc.) and want a fast, keyboard-driven way to find, view, and manage them — without leaving the terminal, regardless of which directory they are currently in.
 
-The tool is invoked with a single command (e.g. `dotdash`) from **any working directory** in the terminal. It always operates on `~` — the current directory is irrelevant.
+The tool is invoked with a single command (e.g. `dotty`) from **any working directory** in the terminal. It always operates on `~` — the current directory is irrelevant.
 
 The UX model is **Telescope/fzf-style**: a fuzzy-searchable list on the left with a live file preview on the right, all inside a single TUI screen. Browse, preview, and copy file paths via keyboard shortcuts.
 
@@ -51,7 +51,7 @@ The final artifact must be a **single compiled binary** with no runtime dependen
 
 ```
 ┌─────────────────────┐ ┌──────────────────────────────────────────┐
-│  dotdash            │ │  .config/nvim/init.lua              42%  │
+│  dotty            │ │  .config/nvim/init.lua              42%  │
 │  / nvi█             │ │────────────────────────────────────────  │
 │─────────────────────│ │   1  -- neovim config                    │
 │ ▸ .config/nvim/     │ │   2                                      │
@@ -222,7 +222,7 @@ Normal file entries: default foreground.
 
 ## 12. Startup Behavior
 
-On launch, dotdash must:
+On launch, dotty must:
 
 1. Scan `~` as described in section 6
 2. If no entries are found, print `"No dotfiles found in ~"` and exit with code 1
@@ -242,17 +242,17 @@ A core requirement is that the tool is callable **from any directory** in the te
 
 **Method A — go install (recommended for Go users):**
 ```bash
-go install github.com/<user>/dotdash@latest
-# binary lands in $(go env GOPATH)/bin/dotdash
+go install github.com/<user>/dotty@latest
+# binary lands in $(go env GOPATH)/bin/dotty
 # ensure $(go env GOPATH)/bin is in $PATH
 ```
 
 **Method B — manual build:**
 ```bash
-git clone https://github.com/<user>/dotdash
-cd dotdash
-go build -o dotdash .
-sudo mv dotdash /usr/local/bin/
+git clone https://github.com/<user>/dotty
+cd dotty
+go build -o dotty .
+sudo mv dotty /usr/local/bin/
 ```
 
 **Method C — pre-built release binary:**
@@ -263,7 +263,7 @@ Download from GitHub Releases, `chmod +x`, move to `/usr/local/bin/` or `~/bin/`
 Once installed, the tool is invoked with a single command from any path:
 
 ```bash
-dotdash
+dotty
 ```
 
 The current working directory is **completely ignored**. The tool always scans `~` regardless of where it is called from. This is the same behavior as `k9s` (which always connects to the current kubeconfig context, not a local directory).
@@ -279,7 +279,7 @@ The README must include a clear note:
 ## 14. Project Structure
 
 ```
-dotdash/
+dotty/
 ├── main.go          # Entry point, tea.Program setup, CLI flags
 ├── model.go         # Model struct, Init/Update/View
 ├── scan.go          # scanDotfiles() function

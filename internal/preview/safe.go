@@ -1,4 +1,4 @@
-package main
+package preview
 
 import (
 	"path/filepath"
@@ -8,7 +8,6 @@ import (
 
 const binaryProbeSize = 8192
 
-// Binary extensions Telescope/fzf typically refuse to cat into the terminal.
 var binaryExtensions = map[string]bool{
 	".7z": true, ".a": true, ".avi": true, ".bin": true, ".bmp": true,
 	".bz2": true, ".class": true, ".dat": true, ".db": true, ".dll": true,
@@ -21,13 +20,12 @@ var binaryExtensions = map[string]bool{
 	".xz": true, ".zip": true, ".zst": true,
 }
 
-func isBinaryExtension(path string) bool {
+func IsBinaryExtension(path string) bool {
 	ext := strings.ToLower(filepath.Ext(path))
 	return binaryExtensions[ext]
 }
 
-// isBinaryData mirrors fzf/telescope: NUL in the first 8KiB means binary.
-func isBinaryData(data []byte) bool {
+func IsBinaryData(data []byte) bool {
 	n := len(data)
 	if n > binaryProbeSize {
 		n = binaryProbeSize
@@ -59,7 +57,7 @@ func stripANSI(s string) string {
 	return b.String()
 }
 
-func sanitizePreviewLine(line string) string {
+func SanitizeLine(line string) string {
 	line = stripANSI(line)
 	var b strings.Builder
 	b.Grow(len(line))
@@ -74,19 +72,17 @@ func sanitizePreviewLine(line string) string {
 				b.WriteRune('·')
 			}
 		default:
-			// drop CR, ESC, other controls (Telescope never prints these raw)
 		}
 	}
 	return b.String()
 }
 
-func sanitizePreviewContent(content string) string {
+func sanitizeContent(content string) string {
 	content = strings.ReplaceAll(content, "\r\n", "\n")
 	content = strings.ReplaceAll(content, "\r", "\n")
 	lines := strings.Split(content, "\n")
 	for i, line := range lines {
-		lines[i] = sanitizePreviewLine(line)
+		lines[i] = SanitizeLine(line)
 	}
 	return strings.Join(lines, "\n")
 }
-
