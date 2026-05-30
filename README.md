@@ -2,9 +2,13 @@
 
 Terminal UI for browsing dotfiles under your home directory. Run it from anywhere — it always scans `~`, shows an expandable tree on the left, file preview on the right, and a fuzzy finder to jump to any path quickly.
 
-![dotty tree view and file preview](docs/demo/screenshot-tree.png)
+<p align="center">
+  <img src="docs/demo/screenshot-tree.png" width="900" alt="dotty tree view and file preview" />
+</p>
 
-![dotty fuzzy finder](docs/demo/screenshot-fuzzy.png)
+<p align="center">
+  <img src="docs/demo/screenshot-fuzzy.png" width="900" alt="dotty fuzzy finder" />
+</p>
 
 ## Install
 
