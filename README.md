@@ -2,18 +2,9 @@
 
 Terminal UI for browsing dotfiles under your home directory. Run it from anywhere — it always scans `~`, shows an expandable tree on the left, file preview on the right, and a fuzzy finder to jump to any path quickly.
 
-```
-┌─────────────────────┐ ┌──────────────────────────────────────────┐
-│  dotty              │ │  init.lua                           42%  │
-│  /                  │ │────────────────────────────────────────  │
-│─────────────────────│ │   1  -- neovim config                    │
-│ ▸ .config/          │ │   2                                      │
-│   ▾ .config/nvim/   │ │   3  vim.opt.number = true               │
-│     init.lua        │ │   4  vim.opt.relativenumber = true       │
-│   .zshrc            │ │                                          │
-└─────────────────────┘ └──────────────────────────────────────────┘
-  12/48 entries    j/k move  Enter open  / find  y copy  Tab preview  q quit
-```
+![dotty tree view and file preview](docs/demo/screenshot-tree.png)
+
+![dotty fuzzy finder](docs/demo/screenshot-fuzzy.png)
 
 ## Install
 
