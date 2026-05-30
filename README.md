@@ -17,20 +17,34 @@ Terminal UI for browsing dotfiles under your home directory. Run it from anywher
 
 ## Install
 
+Run `dotty` from any directory once the binary is on your `PATH`.
+
+### Pre-built binary (recommended)
+
+Download from [Releases](https://github.com/RiccardoCataldi/dotty/releases). Replace `VERSION` with the latest tag (e.g. `v0.1.0`).
+
+| Platform | Asset |
+|----------|-------|
+| Linux x86_64 | `dotty_Linux_x86_64.tar.gz` |
+| Linux ARM64 | `dotty_Linux_arm64.tar.gz` |
+| macOS Intel | `dotty_Darwin_x86_64.tar.gz` |
+| macOS Apple Silicon | `dotty_Darwin_arm64.tar.gz` |
+
+```bash
+VERSION=v0.1.0
+curl -sL "https://github.com/RiccardoCataldi/dotty/releases/download/${VERSION}/dotty_Linux_x86_64.tar.gz" | tar xz
+install -m 755 dotty ~/bin/   # or: sudo install -m 755 dotty /usr/local/bin/
+```
+
+Ensure `~/bin` or `/usr/local/bin` is on your `PATH`.
+
+### From source
+
 Requires Go 1.22+.
 
 ```bash
 git clone https://github.com/RiccardoCataldi/dotty.git
 cd dotty
-```
-
-### Global command
-
-Run `dotty` from any directory once the binary is on your `PATH`.
-
-**Option A — `go install` (recommended)**
-
-```bash
 go install ./cmd/dotty
 ```
 
@@ -40,14 +54,7 @@ The binary is installed to `$(go env GOPATH)/bin/dotty` (usually `~/go/bin/dotty
 export PATH="$HOME/go/bin:$PATH"
 ```
 
-Open a new terminal (or `source ~/.bashrc`), then check:
-
-```bash
-which dotty
-file $(which dotty)   # should be an ELF executable, not a shell script
-```
-
-**Option B — build and copy**
+Or build and copy manually:
 
 ```bash
 go build -o dotty ./cmd/dotty
@@ -55,10 +62,6 @@ mkdir -p ~/bin
 mv dotty ~/bin/
 export PATH="$HOME/bin:$PATH"   # add to ~/.bashrc to persist
 ```
-
-**Linux: name clash with Graphviz**
-
-Some systems ship another program called `dotty` at `/usr/bin/dotty` (Graphviz’s graph editor). It opens a separate GUI window instead of this TUI. Ensure `~/go/bin` (or wherever you installed) comes **before** `/usr/bin` in `PATH`, or run `~/go/bin/dotty` directly.
 
 ### Clipboard (optional)
 
