@@ -21,7 +21,7 @@ jobs:
       - name: Build binaries
         run: |
           mkdir -p dist
-          while IFS=/ read -r goos goarch name; do
+          while read -r goos goarch name; do
             GOOS=$goos GOARCH=$goarch go build -ldflags="-s -w" -o "dist/${name}/dotty" ./cmd/dotty
             tar czf "dist/${name}.tar.gz" -C "dist/${name}" dotty
           done <<EOF
