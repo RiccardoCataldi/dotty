@@ -4,6 +4,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"unicode/utf8"
 
 	"github.com/mattn/go-runewidth"
@@ -34,7 +35,7 @@ type pathFuzzyResult struct {
 	ok       bool
 }
 
-func filterAndRankPickerFiles(all []pickerEntry, query string) ([]pickerMatch, int) {
+func filterAndRankPickerFiles(all []pickerEntry, query string, prev []pickerMatch, prevQuery string) ([]pickerMatch, int) {
 	if query == "" {
 		out := make([]pickerMatch, 0, min(len(all), pickerResultCap))
 		for i, e := range all {
@@ -46,9 +47,17 @@ func filterAndRankPickerFiles(all []pickerEntry, query string) ([]pickerMatch, i
 		return out, len(all)
 	}
 
+	source := all
+	if prevQuery != "" && strings.HasPrefix(query, prevQuery) && len(query) > len(prevQuery) && len(prev) > 0 {
+		source = make([]pickerEntry, len(prev))
+		for i, m := range prev {
+			source[i] = m.entry
+		}
+	}
+
 	qLower := []rune(strings.ToLower(query))
 	scored := make([]scoredPickerEntry, 0, 256)
-	for _, e := range all {
+	for _, e := range source {
 		if !quickSubsequence(qLower, e.relLower) {
 			continue
 		}
@@ -99,6 +108,33 @@ func quickSubsequence(q, text []rune) bool {
 	return false
 }
 
+type fuzzyDPBuf struct {
+	dp    []int
+	prevJ []int
+}
+
+var fuzzyDPBufPool = sync.Pool{
+	New: func() any {
+		return &fuzzyDPBuf{
+			dp:    make([]int, 0, 32),
+			prevJ: make([]int, 0, 32),
+		}
+	},
+}
+
+func acquireFuzzyDP(m int) (*fuzzyDPBuf, []int, []int) {
+	buf := fuzzyDPBufPool.Get().(*fuzzyDPBuf)
+	need := m + 1
+	if cap(buf.dp) < need {
+		buf.dp = make([]int, need)
+		buf.prevJ = make([]int, need)
+	} else {
+		buf.dp = buf.dp[:need]
+		buf.prevJ = buf.prevJ[:need]
+	}
+	return buf, buf.dp, buf.prevJ
+}
+
 func computePathFuzzy(qLower []rune, path string, tLower []rune) pathFuzzyResult {
 	if len(qLower) == 0 {
 		return pathFuzzyResult{ok: true}
@@ -111,8 +147,8 @@ func computePathFuzzy(qLower []rune, path string, tLower []rune) pathFuzzyResult
 	baseStart := n - len(baseLower)
 
 	const negInf = -1 << 30
-	dp := make([]int, m+1)
-	prevJ := make([]int, m+1)
+	buf, dp, prevJ := acquireFuzzyDP(m)
+	defer fuzzyDPBufPool.Put(buf)
 	for i := range dp {
 		dp[i] = negInf
 		prevJ[i] = -1

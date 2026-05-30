@@ -28,6 +28,13 @@ type pickerWarmMsg struct {
 	files []pickerEntry
 }
 
+type pickerFilterMsg struct {
+	gen     int
+	query   string
+	results []pickerMatch
+	total   int
+}
+
 type model struct {
 	homeDir           string
 	roots             []*TreeNode
@@ -43,6 +50,7 @@ type model struct {
 	pickerResults          []pickerMatch
 	pickerMatchTotal       int
 	pickerLastQuery        string
+	pickerFilterGen        int
 	pickerCursor           int
 	pickerOffset           int
 	pickerPreview          viewport.Model
@@ -205,6 +213,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.pickerAll == nil {
 			m.pickerAll = msg.files
 		}
+		return m, nil
+
+	case pickerFilterMsg:
+		if msg.gen != m.pickerFilterGen {
+			return m, nil
+		}
+		m.applyPickerFilter(msg.query, msg.results, msg.total)
 		return m, nil
 
 	case tea.KeyMsg:

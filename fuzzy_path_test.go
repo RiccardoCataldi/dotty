@@ -10,7 +10,7 @@ func TestPemRanksExtensionFile(t *testing.T) {
 		newPickerEntry(".ssh/cert.pem", ""),
 		newPickerEntry(".config/foo/bar.pem", ""),
 	}
-	results, matchTotal := filterAndRankPickerFiles(entries, "pem")
+	results, matchTotal := filterAndRankPickerFiles(entries, "pem", nil, "")
 	if matchTotal == 0 {
 		t.Fatal("expected matches for pem")
 	}
@@ -29,7 +29,7 @@ func TestNviRanksNvimPath(t *testing.T) {
 		newPickerEntry(".config/nvim/init.lua", ""),
 		newPickerEntry(".zshrc", ""),
 	}
-	results, _ := filterAndRankPickerFiles(entries, "nvi")
+	results, _ := filterAndRankPickerFiles(entries, "nvi", nil, "")
 	if len(results) == 0 {
 		t.Fatal("expected matches for nvi")
 	}
@@ -42,7 +42,7 @@ func TestWeakSubsequenceFiltered(t *testing.T) {
 	// scattered p,e,m across long path should score below threshold
 	long := ".cache/foo/bar/baz/qux/" + stringsRepeat("a", 80) + "/readme.md"
 	entries := []pickerEntry{newPickerEntry(long, "")}
-	results, matchTotal := filterAndRankPickerFiles(entries, "pem")
+	results, matchTotal := filterAndRankPickerFiles(entries, "pem", nil, "")
 	if matchTotal > 0 && len(results) > 0 {
 		s, ok := scorePathFuzzy("pem", long)
 		if ok && s >= minPathFuzzyScore {
@@ -54,7 +54,7 @@ func TestWeakSubsequenceFiltered(t *testing.T) {
 		newPickerEntry(long, ""),
 		newPickerEntry("key.pem", ""),
 	}
-	results, _ = filterAndRankPickerFiles(entries, "pem")
+	results, _ = filterAndRankPickerFiles(entries, "pem", nil, "")
 	if results[0].entry.RelPath != "key.pem" {
 		t.Fatalf("expected key.pem first, got %q", results[0].entry.RelPath)
 	}

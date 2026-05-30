@@ -73,12 +73,18 @@ func (m *model) closePicker() {
 
 func (m *model) filterPicker() {
 	query := m.pickerInput.Value()
+	results, total := filterAndRankPickerFiles(m.pickerAll, query, m.pickerResults, m.pickerLastQuery)
+	m.applyPickerFilter(query, results, total)
+}
+
+func (m *model) applyPickerFilter(query string, results []pickerMatch, total int) {
 	if query != m.pickerLastQuery {
 		m.pickerCursor = 0
 		m.pickerOffset = 0
-		m.pickerLastQuery = query
 	}
-	m.pickerResults, m.pickerMatchTotal = filterAndRankPickerFiles(m.pickerAll, query)
+	m.pickerLastQuery = query
+	m.pickerResults = results
+	m.pickerMatchTotal = total
 	if m.pickerCursor >= len(m.pickerResults) {
 		if len(m.pickerResults) > 0 {
 			m.pickerCursor = len(m.pickerResults) - 1
@@ -88,6 +94,13 @@ func (m *model) filterPicker() {
 	}
 	m.ensurePickerCursorVisible()
 	m.refreshPickerPreview()
+}
+
+func filterPickerCmd(gen int, all []pickerEntry, query string, prev []pickerMatch, prevQuery string) tea.Cmd {
+	return func() tea.Msg {
+		results, total := filterAndRankPickerFiles(all, query, prev, prevQuery)
+		return pickerFilterMsg{gen: gen, query: query, results: results, total: total}
+	}
 }
 
 func (m *model) refreshPickerPreview() {
@@ -254,8 +267,20 @@ func (m model) updatePicker(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 
 	var cmd tea.Cmd
+	oldQuery := m.pickerInput.Value()
 	m.pickerInput, cmd = m.pickerInput.Update(msg)
-	m.filterPicker()
+	newQuery := m.pickerInput.Value()
+	if newQuery != oldQuery {
+		if newQuery != m.pickerLastQuery {
+			m.pickerCursor = 0
+			m.pickerOffset = 0
+		}
+		m.pickerFilterGen++
+		gen := m.pickerFilterGen
+		prev := m.pickerResults
+		prevQ := m.pickerLastQuery
+		return m, tea.Batch(cmd, filterPickerCmd(gen, m.pickerAll, newQuery, prev, prevQ))
+	}
 	return m, cmd
 }
 
