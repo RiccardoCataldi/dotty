@@ -22,6 +22,9 @@ func collectAllFiles(roots []*scan.TreeNode) []fuzzy.Entry {
 	var files []fuzzy.Entry
 	var walk func(node *scan.TreeNode)
 	walk = func(node *scan.TreeNode) {
+		if node == nil {
+			return
+		}
 		if !node.IsDir {
 			files = append(files, fuzzy.NewEntry(node.RelPath, node.Path))
 			return
@@ -37,18 +40,21 @@ func collectAllFiles(roots []*scan.TreeNode) []fuzzy.Entry {
 	return files
 }
 
-func (m *Model) openPicker() {
-	if m.pickerAll == nil {
-		m.pickerAll = collectAllFiles(m.roots)
-	}
+func (m *Model) openPicker() tea.Cmd {
 	m.pickerInput.SetValue("")
 	m.pickerInput.CursorEnd()
 	m.pickerInput.Focus()
 	m.pickerCursor = 0
 	m.pickerOffset = 0
 	m.pickerLastQuery = ""
-	m.filterPicker()
 	m.mode = modePicker
+	m.filterPicker()
+
+	if m.pickerAll == nil && !m.pickerWarming {
+		m.pickerWarming = true
+		return warmPickerCmd(m.roots)
+	}
+	return nil
 }
 
 func (m *Model) closePicker() {
@@ -185,7 +191,6 @@ func (m *Model) revealRelPath(target string) {
 		}
 	}
 	m.totalCount = scan.CountNodes(m.roots)
-	m.invalidatePickerCache()
 	m.rebuildVisible()
 	if idx := tree.FindByRelPath(m.visibleRows, target); idx >= 0 {
 		m.cursor = idx
@@ -216,10 +221,6 @@ func revealFrom(m *Model, node *scan.TreeNode, target string) bool {
 		}
 	}
 	return false
-}
-
-func (m *Model) invalidatePickerCache() {
-	m.pickerAll = nil
 }
 
 func (m Model) updatePicker(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -356,7 +357,7 @@ func (m Model) renderPickerOverlay() string {
 		matchTotal = len(m.pickerAll)
 	}
 	footerText := ui.PickerFooter.Render(
-		formatPickerFooter(m.pickerCursor, len(m.pickerResults), matchTotal, len(m.pickerAll)),
+		formatPickerFooter(m.pickerCursor, len(m.pickerResults), matchTotal, len(m.pickerAll), m.pickerWarming),
 	)
 
 	body := lipgloss.JoinVertical(lipgloss.Left, promptLine, sep, split, padLine(footerText, innerW))
@@ -365,16 +366,23 @@ func (m Model) renderPickerOverlay() string {
 	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, modal)
 }
 
-func formatPickerFooter(cursor, shown, matchTotal, cacheTotal int) string {
+func formatPickerFooter(cursor, shown, matchTotal, cacheTotal int, indexing bool) string {
+	suffix := ""
+	if indexing {
+		suffix = "  · indexing…"
+	}
 	if shown == 0 {
+		if indexing {
+			return "  indexing…"
+		}
 		return "  no matches"
 	}
 	idx := cursor + 1
 	if matchTotal == shown && matchTotal == cacheTotal {
-		return fmt.Sprintf("  %d/%d", idx, shown)
+		return fmt.Sprintf("  %d/%d%s", idx, shown, suffix)
 	}
 	if matchTotal == shown {
-		return fmt.Sprintf("  %d/%d  (%d total)", idx, shown, cacheTotal)
+		return fmt.Sprintf("  %d/%d  (%d total)%s", idx, shown, cacheTotal, suffix)
 	}
-	return fmt.Sprintf("  %d/%d  (%d matches, %d total)", idx, shown, matchTotal, cacheTotal)
+	return fmt.Sprintf("  %d/%d  (%d matches, %d total)%s", idx, shown, matchTotal, cacheTotal, suffix)
 }

@@ -14,8 +14,7 @@ func (m *Model) handleKey(msg tea.KeyMsg) tea.Cmd {
 		return nil
 
 	case key.Matches(msg, keys.Search):
-		m.openPicker()
-		return nil
+		return m.openPicker()
 
 	case key.Matches(msg, keys.Tab):
 		if m.focus == focusList {

@@ -51,6 +51,7 @@ type Model struct {
 	mode                    uiMode
 	pickerInput             textinput.Model
 	pickerAll               []fuzzy.Entry
+	pickerWarming           bool
 	pickerResults           []fuzzy.Match
 	pickerMatchTotal        int
 	pickerLastQuery         string
@@ -87,6 +88,7 @@ func New(homeDir string, roots []*scan.TreeNode, totalCount int) Model {
 		totalCount:    totalCount,
 		expanded:      make(map[string]bool),
 		pickerInput:   pi,
+		pickerWarming: true,
 		pickerPreview: ppv,
 		preview:       vp,
 		focus:         focusList,
@@ -150,7 +152,6 @@ func (m *Model) toggleExpandAtCursor() {
 		_ = scan.LoadChildren(row.Node)
 		m.expanded[row.Node.Path] = true
 		m.totalCount = scan.CountNodes(m.roots)
-		m.invalidatePickerCache()
 	}
 	m.rebuildVisible()
 	m.ensureCursorVisible()
@@ -189,12 +190,16 @@ func (m *Model) ensureCursorVisible() {
 	}
 }
 
+func warmPickerCmd(roots []*scan.TreeNode) tea.Cmd {
+	return func() tea.Msg {
+		return pickerWarmMsg{files: collectAllFiles(roots)}
+	}
+}
+
 func (m Model) Init() tea.Cmd {
 	return tea.Batch(
 		tea.Tick(time.Second, func(t time.Time) tea.Msg { return tickMsg(t) }),
-		func() tea.Msg {
-			return pickerWarmMsg{files: collectAllFiles(m.roots)}
-		},
+		warmPickerCmd(m.roots),
 	)
 }
 
@@ -213,8 +218,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Tick(time.Second, func(t time.Time) tea.Msg { return tickMsg(t) })
 
 	case pickerWarmMsg:
+		m.pickerWarming = false
 		if m.pickerAll == nil {
 			m.pickerAll = msg.files
+		}
+		if m.mode == modePicker {
+			m.pickerFilterGen++
+			gen := m.pickerFilterGen
+			return m, filterPickerCmd(gen, m.pickerAll, m.pickerInput.Value(), nil, "")
 		}
 		return m, nil
 

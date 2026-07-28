@@ -5,7 +5,10 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 )
+
+var loadMu sync.Mutex
 
 // DefaultBlocklist skips noisy or sensitive dot-directories under $HOME.
 var DefaultBlocklist = map[string]bool{
@@ -82,7 +85,13 @@ func Dotfiles(homeDir string) ([]*TreeNode, int, error) {
 }
 
 func LoadChildren(node *TreeNode) error {
-	if !node.IsDir || node.loaded {
+	if node == nil || !node.IsDir {
+		return nil
+	}
+
+	loadMu.Lock()
+	defer loadMu.Unlock()
+	if node.loaded {
 		return nil
 	}
 
@@ -119,7 +128,14 @@ func LoadChildren(node *TreeNode) error {
 
 func sortTreeNodes(nodes []*TreeNode) {
 	sort.Slice(nodes, func(i, j int) bool {
-		return nodes[i].RelPath < nodes[j].RelPath
+		a, b := nodes[i], nodes[j]
+		if a == nil {
+			return false
+		}
+		if b == nil {
+			return true
+		}
+		return a.RelPath < b.RelPath
 	})
 }
 
